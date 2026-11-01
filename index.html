@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CMYK 印刷 インク 色 プレビュー</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen p-4">
+<div class="max-w-5xl mx-auto">
+  <h1 class="text-2xl font-bold text-center mb-2 text-yellow-400">CMYK 印刷 インク 色 プレビュー</h1>
+  <p class="text-center text-gray-400 text-sm mb-4">4色インク混合シミュレーションと印刷色の確認</p>
+
+  <div class="flex flex-col lg:flex-row gap-4">
+    <!-- Sliders -->
+    <div class="lg:w-72 flex flex-col gap-3">
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+        <h2 class="font-semibold text-yellow-300 mb-3">CMYK インク</h2>
+
+        <div class="mb-3">
+          <label class="text-xs flex justify-between mb-1"><span class="text-cyan-400 font-bold">C — シアン (Cyan)</span><span id="cVal" class="font-mono">50%</span></label>
+          <input id="cSlider" type="range" min="0" max="100" value="50" class="w-full accent-cyan-400" aria-label="シアン">
+          <div class="flex justify-between text-xs text-gray-500 mt-1"><span>0%</span><span>100%</span></div>
+        </div>
+
+        <div class="mb-3">
+          <label class="text-xs flex justify-between mb-1"><span class="text-pink-500 font-bold">M — マゼンタ (Magenta)</span><span id="mVal" class="font-mono">0%</span></label>
+          <input id="mSlider" type="range" min="0" max="100" value="0" class="w-full accent-pink-500" aria-label="マゼンタ">
+        </div>
+
+        <div class="mb-3">
+          <label class="text-xs flex justify-between mb-1"><span class="text-yellow-400 font-bold">Y — イエロー (Yellow)</span><span id="yVal" class="font-mono">0%</span></label>
+          <input id="ySlider" type="range" min="0" max="100" value="0" class="w-full accent-yellow-400" aria-label="イエロー">
+        </div>
+
+        <div class="mb-1">
+          <label class="text-xs flex justify-between mb-1"><span class="text-gray-300 font-bold">K — ブラック (Key)</span><span id="kVal" class="font-mono">0%</span></label>
+          <input id="kSlider" type="range" min="0" max="100" value="0" class="w-full accent-gray-400" aria-label="ブラック">
+        </div>
+      </div>
+
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+        <h2 class="font-semibold text-yellow-300 mb-2">プリセット</h2>
+        <div id="presets" class="grid grid-cols-2 gap-1"></div>
+      </div>
+
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+        <h2 class="font-semibold text-yellow-300 mb-2">HEX 入力</h2>
+        <div class="flex gap-2">
+          <input id="hexInput" type="text" value="#00BFFF" placeholder="#RRGGBB" class="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-sm font-mono" aria-label="16進カラーコード">
+          <button id="fromHex" class="bg-yellow-700 hover:bg-yellow-600 rounded px-2 py-1 text-xs" aria-label="変換">変換</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview area -->
+    <div class="flex-1 flex flex-col gap-3">
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+        <h2 class="font-semibold text-yellow-300 mb-3">色プレビュー</h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <div class="text-xs text-gray-400 mb-1">Web (sRGB) 表示</div>
+            <div id="webPreview" class="h-28 rounded-lg border border-gray-600 flex items-end p-2">
+              <span class="text-xs text-white text-shadow">Web</span>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-400 mb-1">印刷近似色</div>
+            <div id="printPreview" class="h-28 rounded-lg border border-gray-600 flex items-end p-2">
+              <span class="text-xs text-white text-shadow">Print</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+        <h2 class="font-semibold text-yellow-300 mb-3">インク視覚化</h2>
+        <canvas id="inkCanvas" width="480" height="120" class="w-full rounded" aria-label="インク混合視覚化"></canvas>
+      </div>
+
+      <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+        <h2 class="font-semibold text-yellow-300 mb-2">変換値・出力</h2>
+        <div id="colorInfo" class="grid grid-cols-2 gap-2 text-xs font-mono"></div>
+        <div id="gamutWarn" class="hidden mt-2 text-xs bg-orange-900 text-orange-200 rounded p-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const PRESETS = [
+  {name:'プロセスシアン',c:100,m:0,y:0,k:0},
+  {name:'プロセスマゼンタ',c:0,m:100,y:0,k:0},
+  {name:'プロセスイエロー',c:0,m:0,y:100,k:0},
+  {name:'プロセスブラック',c:0,m:0,y:0,k:100},
+  {name:'レッド',c:0,m:100,y:100,k:0},
+  {name:'グリーン',c:100,m:0,y:100,k:0},
+  {name:'ブルー',c:100,m:100,y:0,k:0},
+  {name:'ホワイト',c:0,m:0,y:0,k:0},
+  {name:'グレー50%',c:0,m:0,y:0,k:50},
+  {name:'オレンジ',c:0,m:50,y:100,k:0},
+];
+
+function cmykToRgb(c,m,y,k) {
+  const C=c/100,M=m/100,Y=y/100,K=k/100;
+  return [
+    Math.round(255*(1-C)*(1-K)),
+    Math.round(255*(1-M)*(1-K)),
+    Math.round(255*(1-Y)*(1-K)),
+  ];
+}
+// Print simulation: slightly desaturated / darker
+function cmykToPrintRgb(c,m,y,k) {
+  const [r,g,b]=cmykToRgb(c,m,y,k);
+  // dot gain simulation ~15%
+  const gain=0.92;
+  return [Math.round(r*gain+8),Math.round(g*gain+8),Math.round(b*gain+8)].map(v=>Math.max(0,Math.min(255,v)));
+}
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');}
+function hexToRgb(hex){const h=hex.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function rgbToCmyk(r,g,b){
+  const rp=r/255,gp=g/255,bp=b/255;
+  const k=1-Math.max(rp,gp,bp);
+  if(k===1)return[0,0,0,100];
+  return[
+    Math.round((1-rp-k)/(1-k)*100),
+    Math.round((1-gp-k)/(1-k)*100),
+    Math.round((1-bp-k)/(1-k)*100),
+    Math.round(k*100)
+  ];
+}
+
+function totalInk(){
+  return parseInt(document.getElementById('cSlider').value)+
+    parseInt(document.getElementById('mSlider').value)+
+    parseInt(document.getElementById('ySlider').value)+
+    parseInt(document.getElementById('kSlider').value);
+}
+
+function isOutOfPrintGamut(c,m,y,k){return totalInk()>300;}
+
+function update(){
+  const c=parseInt(document.getElementById('cSlider').value);
+  const m=parseInt(document.getElementById('mSlider').value);
+  const y=parseInt(document.getElementById('ySlider').value);
+  const k=parseInt(document.getElementById('kSlider').value);
+  const vals={c,m,y,k};['c','m','y','k'].forEach(ch=>{document.getElementById(ch+'Val').textContent=vals[ch]+'%';});
+
+  const [r,g,b]=cmykToRgb(c,m,y,k);
+  const [pr,pg,pb]=cmykToPrintRgb(c,m,y,k);
+  const hex=rgbToHex(r,g,b);
+  document.getElementById('webPreview').style.background=hex;
+  document.getElementById('printPreview').style.background=rgbToHex(pr,pg,pb);
+  document.getElementById('hexInput').value=hex.toUpperCase();
+
+  const ink=totalInk();
+  const gamut=document.getElementById('gamutWarn');
+  if(ink>300){gamut.classList.remove('hidden');gamut.textContent=`⚠ インク総量 ${ink}% — 印刷標準(300%)超過。紙がにじむ可能性`;}
+  else gamut.classList.add('hidden');
+
+  document.getElementById('colorInfo').innerHTML=`
+    <div class="bg-gray-800 rounded p-2"><span class="text-gray-400">CMYK: </span><span class="text-yellow-300">C${c} M${m} Y${y} K${k}</span></div>
+    <div class="bg-gray-800 rounded p-2"><span class="text-gray-400">HEX: </span><span class="text-pink-300">${hex.toUpperCase()}</span></div>
+    <div class="bg-gray-800 rounded p-2"><span class="text-gray-400">RGB: </span><span>${r}, ${g}, ${b}</span></div>
+    <div class="bg-gray-800 rounded p-2"><span class="text-gray-400">インク総量: </span><span class="${ink>300?'text-red-400':'text-green-400'}">${ink}%</span></div>
+    <div class="bg-gray-800 rounded p-2"><span class="text-gray-400">印刷RGB: </span><span>${pr}, ${pg}, ${pb}</span></div>
+    <div class="bg-gray-800 rounded p-2"><span class="text-gray-400">ΔE近似: </span><span class="text-blue-300">${Math.round(Math.sqrt((r-pr)**2+(g-pg)**2+(b-pb)**2))}</span></div>
+  `;
+
+  drawInkCanvas(c,m,y,k);
+}
+
+function drawInkCanvas(c,m,y,k){
+  const canvas=document.getElementById('inkCanvas');
+  const ctx=canvas.getContext('2d');
+  const W=canvas.width,H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+
+  const bars=[
+    {val:c,label:`C`,color:'#06b6d4',bg:'#164e63'},
+    {val:m,label:`M`,color:'#ec4899',bg:'#831843'},
+    {val:y,label:`Y`,color:'#eab308',bg:'#713f12'},
+    {val:k,label:`K`,color:'#9ca3af',bg:'#374151'},
+  ];
+  const bw=(W-60)/4,pad=12;
+  bars.forEach(({val,label,color,bg},i)=>{
+    const x=12+i*(bw+4),barH=(val/100)*(H-40),y=H-20-barH;
+    ctx.fillStyle=bg; ctx.fillRect(x,20,bw-4,H-40);
+    ctx.fillStyle=color; ctx.fillRect(x,y,bw-4,barH);
+    ctx.fillStyle='#f9fafb'; ctx.font='bold 11px sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(label,x+(bw-4)/2,14);
+    ctx.fillText(val+'%',x+(bw-4)/2,H-4);
+  });
+  // ink total bar
+  const total=c+m+y+k;
+  const tx=W-44,tw=32,tbh=Math.min((total/400)*(H-40),H-40);
+  ctx.fillStyle='#374151'; ctx.fillRect(tx,20,tw,H-40);
+  ctx.fillStyle=total>300?'#ef4444':'#10b981'; ctx.fillRect(tx,H-20-tbh,tw,tbh);
+  ctx.fillStyle='#f9fafb'; ctx.font='bold 10px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('合計',tx+tw/2,14);
+  ctx.fillText(total,tx+tw/2,H-4);
+  ctx.strokeStyle=total>300?'#ef4444':'#6b7280'; ctx.lineWidth=1.5;
+  const limitY=H-20-(300/400)*(H-40);
+  ctx.setLineDash([4,2]); ctx.beginPath(); ctx.moveTo(tx,limitY); ctx.lineTo(tx+tw,limitY); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#9ca3af'; ctx.font='9px sans-serif';
+  ctx.fillText('300%',tx+tw/2+1,limitY-3);
+}
+
+function buildPresets(){
+  document.getElementById('presets').innerHTML=PRESETS.map((p,i)=>
+    `<button class="text-xs bg-gray-800 hover:bg-gray-700 rounded px-2 py-1 text-left border border-gray-600" data-i="${i}">${p.name}</button>`
+  ).join('');
+  document.getElementById('presets').querySelectorAll('button').forEach(btn=>btn.addEventListener('click',()=>{
+    const p=PRESETS[parseInt(btn.dataset.i)];
+    ['c','m','y','k'].forEach(ch=>{document.getElementById(ch+'Slider').value=p[ch];});
+    update();
+  }));
+}
+
+document.getElementById('fromHex').addEventListener('click',()=>{
+  const hex=document.getElementById('hexInput').value.trim();
+  if(!/^#[0-9a-fA-F]{6}$/.test(hex))return;
+  const [r,g,b]=hexToRgb(hex);
+  const [c,m,y,k]=rgbToCmyk(r,g,b);
+  const cv2={c,m,y,k};['c','m','y','k'].forEach(ch=>{document.getElementById(ch+'Slider').value=cv2[ch];});
+  update();
+});
+document.getElementById('hexInput').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('fromHex').click();});
+['c','m','y','k'].forEach(ch=>document.getElementById(ch+'Slider').addEventListener('input',update));
+
+buildPresets(); update();
+</script>
+</body>
+</html>
